@@ -1,36 +1,84 @@
+
+require('dotenv').config();
 const express = require('express');
 const apiRouter = express.Router();
-
-const lista_produtos = {
-    produtos: [
-        { id: 1, descricao: "Arroz parboilizado 5Kg", valor: 25.00, marca: "Tio João"  },
-        { id: 2, descricao: "Maionese 250gr", valor: 7.20, marca: "Helmans"  },
-        { id: 3, descricao: "Iogurte Natural 200ml", valor: 2.50, marca: "Itambé"  },
-        { id: 4, descricao: "Batata Maior Palha 300gr", valor: 15.20, marca: "Chipps"  },
-        { id: 5, descricao: "Nescau 400gr", valor: 8.00, marca: "Nestlé"  },
-    ]
-};
-
-apiRouter.get('/produtos', function (req, res) {
-    res.json(lista_produtos.produtos)
-    res.end()
-});
-apiRouter.get('/produtos/:id ? type=xpto', function (req, res) {
-    console.log('Header: ' + req.get('Sec-Fetch-Site'));
-    
-    let id = Number.parseInt(req.params.id)
-    let idx = lista_produtos.findIndex (elem => elem.id == id)
-    if (idx > -1) {
-        res.json(lista_produtos.produtos[idx]);        
+const knex = require('knex') ({
+    client: 'pg',
+    connection: {
+        connectionString : process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
     }
-    else {
+});
+
+apiRouter.get('/produtos', (req, res) => {
+    knex.select('*').from('produto')
+    .then(produtos => res.status(200).json(produtos));  
+});
+
+// Add a new product
+apiRouter.post('/produtos', express.json(), (req, res) => {
+    knex('produto')
+        .insert({
+            descricao: req.body.descricao,
+            valor: req.body.valor,
+            marca: req.body.marca},
+            ['id', 'descricao', 'valor', 'marca'])
+        .then (produtos => {
+            let produto = produtos[0]
+            res.status(201).json ({ produto })
+        })
+        .catch (err => res.status(500).json ({ message: `An error has occured ${err.message}`}))
+});
+
+// Get a product by ID
+apiRouter.get('/produtos/:id', (req, res) => {
+    let id = Number.parseInt(req.params.id);
+    if (id > 0) {
+        knex
+          .select("*")
+          .from("produto")
+          .where('id', id)
+          .then(produtos => res.json(produtos))
+          .catch(err => { res.status(500).json({message: 'Could not fetch - ' + err.message})});
+    } else {
         res.status(404).json({ message: "Product not found!" });
     }
 });
 
-// Cria u manipulador da rota padrão 
-apiRouter.post('/produtos', express.json(), function (req, res) {
-    res.send(`Hello World: ${req.body.dados}`)
+// Update Product details
+apiRouter.put('/produtos/:id', (req, res) => {
+    let id = Number.parseInt(req.params.id);
+    if (id > 0) {
+        knex('produto')
+            .where('id', id)
+            .update({
+                descricao: req.body.descricao,
+                valor: req.body.valor,
+                marca: req.body.marca
+            },
+            ['id','descricao','valor','marca'])
+            .then (produtos => {
+                let produto = produtos[0]
+                res.status(200).json({produto})
+            })
+            .catch (err => res.status(500).json ({ message: `An error has occured ${err.message}`}));
+    } else {
+        res.status(404).json({message: "Product not found!"});
+    }
+});
+
+// Delete a Product
+apiRouter.delete('/produtos/:id', (req, res) => {
+    let id = Number.parseInt(req.params.id);
+    if (id > 0) {
+        knex('produto')
+          .where('id', id)
+          .del()
+          .then(res.status(200).json({message: `Item ${id} was removed from the list successfully`}))
+          .catch (err => res.status(500).json ({ message: `An error has occured ${err.message}`}))
+    } else {
+        res.status(404).json({ message: "Product not found"});
+    }
 });
 
 module.exports = apiRouter
