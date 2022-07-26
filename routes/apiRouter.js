@@ -38,7 +38,13 @@ apiRouter.get('/produtos/:id', (req, res) => {
           .select("*")
           .from("produto")
           .where('id', id)
-          .then(produtos => res.json(produtos))
+          .then(produtos => {
+            if (produtos.length > 0) {
+                res.json(produtos[0])
+                return
+            }
+            res.status(404).json({message: 'Product not found'})
+        })
           .catch(err => { res.status(500).json({message: 'Could not fetch - ' + err.message})});
     } else {
         res.status(404).json({ message: "Product not found!" });
